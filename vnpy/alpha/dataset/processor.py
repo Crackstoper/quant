@@ -7,7 +7,7 @@ from .utility import to_datetime
 
 
 def process_drop_na(df: pl.DataFrame, names: list[str] | None = None) -> pl.DataFrame:
-    """Remove rows with missing values"""
+    """删除包含缺失值的行"""
     if names is None:
         names = df.columns[2:-1]
 
@@ -20,7 +20,7 @@ def process_drop_na(df: pl.DataFrame, names: list[str] | None = None) -> pl.Data
 
 
 def process_fill_na(df: pl.DataFrame, fill_value: float, fill_label: bool = True) -> pl.DataFrame:
-    """Fill missing values"""
+    """填充缺失值"""
     if fill_label:
         df = df.fill_null(fill_value)
         df = df.fill_nan(fill_value)
@@ -36,7 +36,7 @@ def process_cs_norm(
     names: list[str],
     method: str         # robust/zscore
 ) -> pl.DataFrame:
-    """Cross-sectional normalization"""
+    """截面归一化"""
     _df: pl.DataFrame = df.fill_nan(None)
 
     # Median method
@@ -80,7 +80,7 @@ def process_robust_zscore_norm(
     fit_end_time: datetime | str | None = None,
     clip_outlier: bool = True
 ) -> pl.DataFrame:
-    """Robust Z-Score normalization"""
+    """鲁棒Z-Score归一化"""
     _df: pl.DataFrame = df.fill_nan(None)
 
     if fit_start_time and fit_end_time:
@@ -110,7 +110,7 @@ def process_robust_zscore_norm(
 
 
 def process_cs_rank_norm(df: pl.DataFrame, names: list[str]) -> pl.DataFrame:
-    """Cross-sectional rank normalization"""
+    """截面排名归一化"""
     _df: pl.DataFrame = df.fill_nan(None)
 
     _df = _df.with_columns([

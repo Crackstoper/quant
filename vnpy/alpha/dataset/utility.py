@@ -6,24 +6,24 @@ import polars as pl
 
 
 class DataProxy:
-    """Feature data proxy"""
+    """特征数据代理"""
 
     def __init__(self, df: pl.DataFrame) -> None:
-        """Constructor"""
+        """构造函数"""
         self.name: str = df.columns[-1]
         self.df: pl.DataFrame = df.rename({self.name: "data"})
 
-        # Note that for numerical expressions, variables should be placed before numbers. e.g. a * 2
+        # 注意：对于数值表达式，变量应该放在数字前面。例如 a * 2
 
     def result(self, s: pl.Series) -> "DataProxy":
-        """Convert series data to feature object"""
+        """将序列数据转换为特征对象"""
         result: pl.DataFrame = self.df[["datetime", "vt_symbol"]]
         result = result.with_columns(other=s)
 
         return DataProxy(result)
 
     def __add__(self, other: Union["DataProxy", int, float]) -> "DataProxy":
-        """Addition operation"""
+        """加法运算"""
         if isinstance(other, DataProxy):
             s: pl.Series = self.df["data"] + other.df["data"]
         else:
@@ -31,7 +31,7 @@ class DataProxy:
         return self.result(s)
 
     def __sub__(self, other: Union["DataProxy", int, float]) -> "DataProxy":
-        """Subtraction operation"""
+        """减法运算"""
         if isinstance(other, DataProxy):
             s: pl.Series = self.df["data"] - other.df["data"]
         else:
@@ -39,7 +39,7 @@ class DataProxy:
         return self.result(s)
 
     def __mul__(self, other: Union["DataProxy", int, float]) -> "DataProxy":
-        """Multiplication operation"""
+        """乘法运算"""
         if isinstance(other, DataProxy):
             s: pl.Series = self.df["data"] * other.df["data"]
         else:
@@ -47,7 +47,7 @@ class DataProxy:
         return self.result(s)
 
     def __rmul__(self, other: Union["DataProxy", int, float]) -> "DataProxy":
-        """Right multiplication operation"""
+        """右乘运算"""
         if isinstance(other, DataProxy):
             s: pl.Series = self.df["data"] * other.df["data"]
         else:
@@ -55,7 +55,7 @@ class DataProxy:
         return self.result(s)
 
     def __truediv__(self, other: Union["DataProxy", int, float]) -> "DataProxy":
-        """Division operation"""
+        """除法运算"""
         if isinstance(other, DataProxy):
             s: pl.Series = self.df["data"] / other.df["data"]
         else:
@@ -63,12 +63,12 @@ class DataProxy:
         return self.result(s)
 
     def __abs__(self) -> "DataProxy":
-        """Get absolute value"""
+        """获取绝对值"""
         s: pl.Series = self.df["data"].abs()
         return self.result(s)
 
     def __gt__(self, other: Union["DataProxy", int, float]) -> "DataProxy":
-        """Greater than comparison"""
+        """大于比较"""
         if isinstance(other, DataProxy):
             s: pl.Series = self.df["data"] > other.df["data"]
         else:
@@ -76,7 +76,7 @@ class DataProxy:
         return self.result(s.cast(pl.Int32))
 
     def __ge__(self, other: Union["DataProxy", int, float]) -> "DataProxy":
-        """Greater than or equal comparison"""
+        """大于等于比较"""
         if isinstance(other, DataProxy):
             s: pl.Series = self.df["data"] >= other.df["data"]
         else:
@@ -84,7 +84,7 @@ class DataProxy:
         return self.result(s.cast(pl.Int32))
 
     def __lt__(self, other: Union["DataProxy", int, float]) -> "DataProxy":
-        """Less than comparison"""
+        """小于比较"""
         if isinstance(other, DataProxy):
             s: pl.Series = self.df["data"] < other.df["data"]
         else:
@@ -92,7 +92,7 @@ class DataProxy:
         return self.result(s.cast(pl.Int32))
 
     def __le__(self, other: Union["DataProxy", int, float]) -> "DataProxy":
-        """Less than or equal comparison"""
+        """小于等于比较"""
         if isinstance(other, DataProxy):
             s: pl.Series = self.df["data"] <= other.df["data"]
         else:
@@ -100,7 +100,7 @@ class DataProxy:
         return self.result(s.cast(pl.Int32))
 
     def __eq__(self, other: Union["DataProxy", int, float]) -> "DataProxy":    # type: ignore
-        """Equal comparison"""
+        """相等比较"""
         if isinstance(other, DataProxy):
             s = self.df["data"] == other.df["data"]
         else:
@@ -109,8 +109,8 @@ class DataProxy:
 
 
 def calculate_by_expression(df: pl.DataFrame, expression: str) -> pl.DataFrame:
-    """Execute calculation based on expression"""
-    # Import operators locally to avoid polluting global namespace
+    """根据表达式执行计算"""
+    # 局部导入操作符以避免污染全局命名空间
     from .ts_function import (              # noqa
         ts_delay,
         ts_min, ts_max,
@@ -143,7 +143,7 @@ def calculate_by_expression(df: pl.DataFrame, expression: str) -> pl.DataFrame:
         quesval, quesval2
     )
 
-    # Extract feature objects to local space
+    # 将特征对象提取到本地空间
     d: dict = locals()
 
     for column in df.columns:
@@ -155,15 +155,15 @@ def calculate_by_expression(df: pl.DataFrame, expression: str) -> pl.DataFrame:
         column_df = df[["datetime", "vt_symbol", column]]
         d[column] = DataProxy(column_df)
 
-    # Use eval to execute calculation
+    # 使用eval执行计算
     other: DataProxy = eval(expression, {}, d)
 
-    # Return result DataFrame
+    # 返回结果DataFrame
     return other.df
 
 
 def calculate_by_polars(df: pl.DataFrame, expression: pl.expr.expr.Expr) -> pl.DataFrame:
-    """Execute calculation based on Polars expression"""
+    """根据Polars表达式执行计算"""
     return df.select([
         "datetime",
         "vt_symbol",
@@ -172,7 +172,7 @@ def calculate_by_polars(df: pl.DataFrame, expression: pl.expr.expr.Expr) -> pl.D
 
 
 def to_datetime(arg: datetime | str) -> datetime:
-    """Convert time data type"""
+    """转换时间数据类型"""
     if isinstance(arg, str):
         if "-" in arg:
             fmt: str = "%Y-%m-%d"
@@ -185,7 +185,7 @@ def to_datetime(arg: datetime | str) -> datetime:
 
 
 class Segment(Enum):
-    """Data segment enumeration values"""
+    """数据段枚举值"""
 
     TRAIN = 1
     VALID = 2

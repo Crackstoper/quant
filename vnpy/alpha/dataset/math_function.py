@@ -1,5 +1,5 @@
 """
-Math Functions
+数学函数
 """
 
 import polars as pl
@@ -8,7 +8,7 @@ from .utility import DataProxy
 
 
 def less(feature1: DataProxy, feature2: DataProxy | float) -> DataProxy:
-    """Return the minimum value between two features"""
+    """返回两个特征中的最小值"""
     if isinstance(feature2, DataProxy):
         df_merged: pl.DataFrame = feature1.df.join(feature2.df, on=["datetime", "vt_symbol"])
     else:
@@ -24,7 +24,7 @@ def less(feature1: DataProxy, feature2: DataProxy | float) -> DataProxy:
 
 
 def greater(feature1: DataProxy, feature2: DataProxy | float) -> DataProxy:
-    """Return the maximum value between two features"""
+    """返回两个特征中的最大值"""
     if isinstance(feature2, DataProxy):
         df_merged: pl.DataFrame = feature1.df.join(feature2.df, on=["datetime", "vt_symbol"])
 
@@ -41,7 +41,7 @@ def greater(feature1: DataProxy, feature2: DataProxy | float) -> DataProxy:
 
 
 def log(feature: DataProxy) -> DataProxy:
-    """Calculate the natural logarithm of the feature"""
+    """计算特征的自然对数"""
     df: pl.DataFrame = feature.df.select(
         pl.col("datetime"),
         pl.col("vt_symbol"),
@@ -51,7 +51,7 @@ def log(feature: DataProxy) -> DataProxy:
 
 
 def abs(feature: DataProxy) -> DataProxy:
-    """Calculate the absolute value of the feature"""
+    """计算特征的绝对值"""
     df: pl.DataFrame = feature.df.select(
         pl.col("datetime"),
         pl.col("vt_symbol"),
@@ -61,7 +61,7 @@ def abs(feature: DataProxy) -> DataProxy:
 
 
 def sign(feature: DataProxy) -> DataProxy:
-    """Calculate the sign of the feature"""
+    """计算特征的符号值"""
     df: pl.DataFrame = feature.df.select(
         pl.col("datetime"),
         pl.col("vt_symbol"),
@@ -71,7 +71,7 @@ def sign(feature: DataProxy) -> DataProxy:
 
 
 def quesval(threshold: float, feature1: DataProxy, feature2: DataProxy | float | int, feature3: DataProxy | float | int) -> DataProxy:
-    """Return feature2 if threshold < feature1, otherwise feature3"""
+    """如果阈值小于feature1，则返回feature2，否则返回feature3"""
     df_merged = feature1.df
 
     if isinstance(feature2, DataProxy):
@@ -95,7 +95,7 @@ def quesval(threshold: float, feature1: DataProxy, feature2: DataProxy | float |
 
 
 def quesval2(threshold: DataProxy, feature1: DataProxy, feature2: DataProxy | float | int, feature3: DataProxy | float | int) -> DataProxy:
-    """Return feature2 if threshold < feature1, otherwise feature3 (DataProxy threshold version)"""
+    """如果阈值小于feature1，则返回feature2，否则返回feature3（DataProxy阈值版本）"""
     df_merged: pl.DataFrame = threshold.df.join(feature1.df, on=["datetime", "vt_symbol"], suffix="_cond")
 
     if isinstance(feature2, DataProxy):
@@ -119,7 +119,7 @@ def quesval2(threshold: DataProxy, feature1: DataProxy, feature2: DataProxy | fl
 
 
 def pow1(base: DataProxy, exponent: float) -> DataProxy:
-    """Safe power operation for DataProxy (handles negative base values)"""
+    """DataProxy的安全幂运算（处理负基数）"""
     df: pl.DataFrame = base.df.with_columns(
         pl.when(pl.col("data") > 0)
         .then(pl.col("data").pow(exponent))
@@ -133,14 +133,14 @@ def pow1(base: DataProxy, exponent: float) -> DataProxy:
 
 
 def pow2(base: DataProxy, exponent: DataProxy) -> DataProxy:
-    """Power operation between two DataProxy objects (base^exponent)
+    """两个DataProxy对象的幂运算（base^exponent）
 
-    handle logic:
-    - base > 0: calculate base^exponent
-    - base < 0 and exponent is integer: calculate -1 * |base|^exponent
-    - other cases (base = 0, exponent is NaN, negative base and non-integer exponent): return 0
+    处理逻辑：
+    - base > 0：计算base^exponent
+    - base < 0 且 exponent为整数：计算 -1 * |base|^exponent
+    - 其他情况（base = 0, exponent为NaN, 负base和非整数exponent）：返回0
 
-    Note: use floor method to check integer rather than cast(Int64) method, because NaN cannot be converted to integer will report an error
+    注意：使用floor方法检查整数而不是cast(Int64)方法，因为NaN不能转换为整数会报错
     """
     base_renamed = base.df.rename({"data": "base_data"})
     exp_renamed = exponent.df.rename({"data": "exp_data"})

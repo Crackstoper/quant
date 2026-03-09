@@ -1,5 +1,5 @@
 """
-Cross Section Operators
+截面算子
 """
 
 import polars as pl
@@ -8,7 +8,7 @@ from .utility import DataProxy
 
 
 def cs_rank(feature: DataProxy) -> DataProxy:
-    """Perform cross-sectional ranking"""
+    """执行截面排名"""
     df: pl.DataFrame = feature.df.select(
         pl.col("datetime"),
         pl.col("vt_symbol"),
@@ -18,7 +18,7 @@ def cs_rank(feature: DataProxy) -> DataProxy:
 
 
 def cs_mean(feature: DataProxy) -> DataProxy:
-    """Calculate cross-sectional mean"""
+    """计算截面均值"""
     df: pl.DataFrame = feature.df.select(
         pl.col("datetime"),
         pl.col("vt_symbol"),
@@ -28,7 +28,7 @@ def cs_mean(feature: DataProxy) -> DataProxy:
 
 
 def cs_std(feature: DataProxy) -> DataProxy:
-    """Calculate cross-sectional standard deviation"""
+    """计算截面标准差"""
     df: pl.DataFrame = feature.df.select(
         pl.col("datetime"),
         pl.col("vt_symbol"),
@@ -38,7 +38,7 @@ def cs_std(feature: DataProxy) -> DataProxy:
 
 
 def cs_sum(feature: DataProxy) -> DataProxy:
-    """Calculate cross-sectional sum"""
+    """计算截面总和"""
     df: pl.DataFrame = feature.df.select(
         pl.col("datetime"),
         pl.col("vt_symbol"),
@@ -48,7 +48,7 @@ def cs_sum(feature: DataProxy) -> DataProxy:
 
 
 def cs_scale(feature: DataProxy) -> DataProxy:
-    """Scale the feature by the sum of absolute values in the cross section"""
+    """根据截面中绝对值的和来缩放特征"""
     abs_feature = abs(feature)
     sum_abs = cs_sum(abs_feature)
 

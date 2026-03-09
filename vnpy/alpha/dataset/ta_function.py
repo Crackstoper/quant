@@ -1,5 +1,5 @@
 """
-Technical Analysis Operators
+技术指标算子
 """
 
 import talib
@@ -10,18 +10,18 @@ from .utility import DataProxy
 
 
 def to_pd_series(feature: DataProxy) -> pd.Series:
-    """Convert to pandas.Series data structure"""
+    """转换为pandas.Series数据结构"""
     series: pd.Series = feature.df.to_pandas().set_index(["datetime", "vt_symbol"])["data"]
     return series
 
 
 def to_pl_dataframe(series: pd.Series) -> pl.DataFrame:
-    """Convert to polars.DataFrame data structure"""
+    """转换为polars.DataFrame数据结构"""
     return pl.from_pandas(series.reset_index().rename(columns={0: "data"}))
 
 
 def ta_rsi(close: DataProxy, window: int) -> DataProxy:
-    """Calculate RSI indicator by contract"""
+    """按合约计算RSI指标"""
     close_: pd.Series = to_pd_series(close)
 
     result: pd.Series = talib.RSI(close_, timeperiod=window)   # type: ignore
@@ -31,7 +31,7 @@ def ta_rsi(close: DataProxy, window: int) -> DataProxy:
 
 
 def ta_atr(high: DataProxy, low: DataProxy, close: DataProxy, window: int) -> DataProxy:
-    """Calculate ATR indicator by contract"""
+    """按合约计算ATR指标"""
     high_: pd.Series = to_pd_series(high)
     low_: pd.Series = to_pd_series(low)
     close_: pd.Series = to_pd_series(close)
