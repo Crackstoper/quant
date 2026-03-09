@@ -7,7 +7,6 @@
 ### 开发环境设置
 - `python -m venv .venv && source .venv/bin/activate` - 创建并激活虚拟环境
 - `pip install -e .[alpha,dev]` - 以开发模式安装包，包含 alpha 和 dev 依赖
-- `python run.py` - 启动 VeighNa 交易终端 GUI 应用程序
 - `python -m pytest tests/ -v` - 运行所有测试
 - `python -m pytest tests/test_alpha101.py -v` - 专门运行 alpha101 测试
 - `ruff check .` - 使用 ruff 检查代码风格
