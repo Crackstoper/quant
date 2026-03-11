@@ -9,25 +9,25 @@ from .locale import _
 
 class BaseDatafeed:
     """
-    Abstract datafeed class for connecting to different datafeed.
+    抽象数据服务类，用于连接不同的数据服务。
     """
 
     def init(self, output: Callable = print) -> bool:
         """
-        Initialize datafeed service connection.
+        初始化数据服务连接。
         """
         return False
 
     def query_bar_history(self, req: HistoryRequest, output: Callable = print) -> list[BarData]:
         """
-        Query history bar data.
+        查询历史K线数据。
         """
         output(_("查询K线数据失败：没有正确配置数据服务"))
         return []
 
     def query_tick_history(self, req: HistoryRequest, output: Callable = print) -> list[TickData]:
         """
-        Query history tick data.
+        查询历史Tick数据。
         """
         output(_("查询Tick数据失败：没有正确配置数据服务"))
         return []
@@ -35,15 +35,14 @@ class BaseDatafeed:
 
 datafeed: BaseDatafeed | None = None
 
-
 def get_datafeed() -> BaseDatafeed:
     """"""
-    # Return datafeed object if already inited
+    # 如果已经初始化，则返回数据服务对象
     global datafeed
     if datafeed:
         return datafeed
 
-    # Read datafeed related global setting
+    # 读取数据服务相关的全局配置
     datafeed_name: str = SETTINGS["datafeed.name"]
 
     if not datafeed_name:
@@ -53,13 +52,13 @@ def get_datafeed() -> BaseDatafeed:
     else:
         module_name: str = f"vnpy_{datafeed_name}"
 
-        # Try to import datafeed module
+        # 尝试导入数据服务模块
         try:
             module: ModuleType = import_module(module_name)
 
-            # Create datafeed object from module
+            # 从模块创建数据服务对象
             datafeed = module.Datafeed()
-        # Use base class if failed
+        # 如果失败则使用基础类
         except ModuleNotFoundError:
             datafeed = BaseDatafeed()
 
