@@ -131,23 +131,28 @@ sequenceDiagram
 ### 🏗️ vnpy核心包结构
 
 ```mermaid
-treeDiagram
-    vnpy --> event
-    vnpy --> trader
-    vnpy --> alpha
-    vnpy --> chart
-    vnpy --> rpc
+graph TD
+    vnpy[vnpy package]
+    vnpy --> event[event module]
+    vnpy --> trading_platform[trading platform]
+    vnpy --> ai_module[AI module]
+    vnpy --> chart[chart module]
+    vnpy --> rpc[rpc module]
 
-    trader --> engine.py        : "MainEngine核心引擎"
-    trader --> gateway.py       : "BaseGateway网关基类"
-    trader --> object.py        : "数据对象定义"
-    trader --> event.py         : "事件常量"
-    trader --> ui/              : "用户界面"
+    subgraph trading_platform_components["trading platform"]
+        platform_components --> engine.py
+        platform_components --> gateway.py
+        platform_components --> object.py
+        platform_components --> event.py
+        platform_components --> ui
+    end
 
-    alpha --> lab.py            : "Alpha研究实验室"
-    alpha --> dataset/          : "因子特征工程"
-    alpha --> model/            : "机器学习模型"
-    alpha --> strategy/         : "策略模板"
+    subgraph alpha_components["AI module"]
+        ai_module_components --> lab.py
+        ai_module_components --> dataset
+        ai_module_components --> model
+        ai_module_components --> strategy
+    end
 ```
 
 ### 📂 详细目录说明
@@ -302,8 +307,8 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    A[交易所] -->|原始数据| B(Gateway)
-    B -->|标准化数据| C(EventEngine)
+    A[交易所] -->|原始数据| B[Gateway]
+    B -->|标准化数据| C[EventEngine]
     C -->|Tick/Bar数据| D[策略引擎]
     C -->|订单/成交| E[风险管理]
     D -->|交易信号| F[MainEngine]

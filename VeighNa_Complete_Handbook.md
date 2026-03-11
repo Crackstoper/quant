@@ -384,23 +384,28 @@ classDiagram
 ### 🏗️ vnpy核心包结构
 
 ```mermaid
-treeDiagram
-    vnpy --> event
-    vnpy --> trader
-    vnpy --> alpha
-    vnpy --> chart
-    vnpy --> rpc
+graph TD
+    vnpy[vnpy package]
+    vnpy --> event[event module]
+    vnpy --> trading_platform[trading platform]
+    vnpy --> ai_module[AI module]
+    vnpy --> chart[chart module]
+    vnpy --> rpc[rpc module]
 
-    trader --> engine.py        : "MainEngine核心引擎"
-    trader --> gateway.py       : "BaseGateway网关基类"
-    trader --> object.py        : "数据对象定义"
-    trader --> event.py         : "事件常量"
-    trader --> ui/              : "用户界面"
+    subgraph trading_platform_components["trading platform"]
+        platform_components --> engine.py
+        platform_components --> gateway.py
+        platform_components --> object.py
+        platform_components --> event.py
+        platform_components --> ui
+    end
 
-    alpha --> lab.py            : "Alpha研究实验室"
-    alpha --> dataset/          : "因子特征工程"
-    alpha --> model/            : "机器学习模型"
-    alpha --> strategy/         : "策略模板"
+    subgraph alpha_components["AI module"]
+        ai_module_components --> lab.py
+        ai_module_components --> dataset
+        ai_module_components --> model
+        ai_module_components --> strategy
+    end
 ```
 
 ### 📊 重要文件功能说明
@@ -463,8 +468,8 @@ graph TD
 
 ```mermaid
 flowchart LR
-    A[交易所] -->|原始数据| B(Gateway)
-    B -->|标准化| C(EventEngine)
+    A[交易所] -->|原始数据| B[Gateway]
+    B -->|标准化| C[EventEngine]
     C -->|分发| D[策略引擎]
     C -->|分发| E[数据记录]
     C -->|分发| F[图表显示]
@@ -574,7 +579,7 @@ flowchart TD
     B -->|订单| D[创建Order事件]
     B -->|成交| E[创建Trade事件]
 
-    C --> F[EventEngine.put()]
+    C --> F[EventEngine put]
     D --> F
     E --> F
 
@@ -614,7 +619,7 @@ class MyStrategy:
 
 ```mermaid
 flowchart LR
-    A[交易所] -->|TCP/IP| B(Gateway)
+    A[交易所] -->|TCP/IP| B[Gateway]
     B -->|解析| C[原始数据]
     C -->|标准化| D[TickData]
     D -->|发布| E[EventEngine]
