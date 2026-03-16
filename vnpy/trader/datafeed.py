@@ -50,18 +50,17 @@ def get_datafeed() -> BaseDatafeed:
 
         print(_("没有配置要使用的数据服务，请修改全局配置中的datafeed相关内容"))
     else:
-        module_name: str = f"vnpy_{datafeed_name}"
-
-        # 尝试导入数据服务模块
-        try:
-            module: ModuleType = import_module(module_name)
-
-            # 从模块创建数据服务对象
-            datafeed = module.Datafeed()
-        # 如果失败则使用基础类
-        except ModuleNotFoundError:
-            datafeed = BaseDatafeed()
-
-            print(_("无法加载数据服务模块，请运行 pip install {} 尝试安装").format(module_name))
+        # 如果配置了 akshare，就返回 AkshareDatafeed
+        if datafeed_name.lower() == "akshare":
+            from vnpy.alpha.datafeed import AkshareDatafeed
+            datafeed = AkshareDatafeed()
+        else:
+            module_name: str = f"vnpy_{datafeed_name}"
+            try:
+                module: ModuleType = import_module(module_name)
+                datafeed = module.Datafeed()
+            except ModuleNotFoundError:
+                datafeed = BaseDatafeed()
+                print(_("无法加载数据服务模块，请运行 pip install {} 尝试安装").format(module_name))
 
     return datafeed
