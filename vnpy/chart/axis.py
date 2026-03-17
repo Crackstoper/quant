@@ -34,7 +34,7 @@ class DatetimeAxis(pg.AxisItem):
 
             if not dt:
                 s: str = ""
-            elif dt.hour:
+            elif hasattr(dt, 'hour') and dt.hour:
                 s = dt.strftime("%Y-%m-%d\n%H:%M:%S")
             else:
                 s = dt.strftime("%Y-%m-%d")
