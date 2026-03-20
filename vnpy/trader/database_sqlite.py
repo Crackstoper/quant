@@ -255,11 +255,11 @@ class SqliteDatabase(BaseDatabase):
             self._update_bar_overview(symbol, exchange, interval, unique_bars)
 
             self.conn.commit()
-            print(f"保存K线数据成功: {len(unique_bars)}条记录")
+            print(f"保存{symbol}的K线数据成功: {len(unique_bars)}条记录")
             return True
 
         except Exception as e:
-            print(f"保存K线数据失败: {e}")
+            print(f"保存{symbol}的K线数据失败: {e}")
             self.conn.rollback()
             return False
 
@@ -397,11 +397,11 @@ class SqliteDatabase(BaseDatabase):
             self._update_tick_overview(symbol, exchange, unique_ticks)
 
             self.conn.commit()
-            print(f"保存Tick数据成功: {len(unique_ticks)}条记录")
+            print(f"保存{symbol}的Tick数据成功: {len(unique_ticks)}条记录")
             return True
 
         except Exception as e:
-            print(f"保存Tick数据失败: {e}")
+            print(f"保存{symbol}的Tick数据失败: {e}")
             self.conn.rollback()
             return False
 
@@ -466,11 +466,11 @@ class SqliteDatabase(BaseDatabase):
                 )
                 bars.append(bar)
 
-            print(f"加载K线数据成功: {len(bars)}条记录")
+            print(f"加载{symbol}的K线数据成功: {len(bars)}条记录")
             return bars
 
         except Exception as e:
-            print(f"加载K线数据失败: {e}")
+            print(f"加载{symbol}的K线数据失败: {e}")
             return []
 
     def load_tick_data(
@@ -552,11 +552,11 @@ class SqliteDatabase(BaseDatabase):
                 )
                 ticks.append(tick)
 
-            print(f"加载Tick数据成功: {len(ticks)}条记录")
+            print(f"加载{symbol}的Tick数据成功: {len(ticks)}条记录")
             return ticks
 
         except Exception as e:
-            print(f"加载Tick数据失败: {e}")
+            print(f"加载{symbol}的Tick数据失败: {e}")
             return []
 
     def delete_bar_data(
@@ -607,11 +607,11 @@ class SqliteDatabase(BaseDatabase):
                 """, [symbol, exchange.value])
 
             self.conn.commit()
-            print(f"删除K线数据成功: {deleted_count}条记录")
+            print(f"删除{symbol}的K线数据成功: {deleted_count}条记录")
             return deleted_count
 
         except Exception as e:
-            print(f"删除K线数据失败: {e}")
+            print(f"删除{symbol}的K线数据失败: {e}")
             self.conn.rollback()
             return 0
 
@@ -647,11 +647,11 @@ class SqliteDatabase(BaseDatabase):
             """, [symbol, exchange.value])
 
             self.conn.commit()
-            print(f"删除Tick数据成功: {deleted_count}条记录")
+            print(f"删除{symbol}的Tick数据成功: {deleted_count}条记录")
             return deleted_count
 
         except Exception as e:
-            print(f"删除Tick数据失败: {e}")
+            print(f"删除{symbol}的Tick数据失败: {e}")
             self.conn.rollback()
             return 0
 
