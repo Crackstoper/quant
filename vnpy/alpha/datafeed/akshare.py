@@ -60,6 +60,16 @@ class AkshareDatafeed(BaseDatafeed):
             self._output(f"Akshare数据服务初始化异常: {e}")
             return False
 
+    def get_exchange(self, code):
+        code = str(code)
+        if code.startswith("6"):
+            return "SSE"  # 上海证券交易所
+        elif code.startswith(("0", "3")):
+            return "SZSE"  # 深圳证券交易所
+        elif code.startswith(("4", "8")):
+            return "BSE"  # 北京证券交易所
+        else:
+            return "UNKNOWN"
     def query_bar_history(self, req: HistoryRequest, output: Callable = print) -> list[BarData]:
         """
         查询历史K线数据
@@ -79,23 +89,13 @@ class AkshareDatafeed(BaseDatafeed):
             # 将VT符号转换为akshare格式
             akshare_symbol, exchange_str = self._convert_vt_to_akshare_symbol(req.vt_symbol)
 
-            def get_exchange(code):
-                code = str(code)
-                if code.startswith("6"):
-                    return "SSE"  # 上海证券交易所
-                elif code.startswith(("0", "3")):
-                    return "SZSE"  # 深圳证券交易所
-                elif code.startswith(("4", "8")):
-                    return "BSE"  # 北京证券交易所
-                else:
-                    return "UNKNOWN"
             # 根据交易所类型选择不同的API
             if exchange_str in ["SSE", "SZSE", "BSE"]:
                 return self._query_stock_bar_history(req, akshare_symbol)
             elif exchange_str == "CFFEX":
                 return self._query_futures_bar_history(req, akshare_symbol)
             else:
-                if get_exchange(akshare_symbol) in ["SSE", "SZSE", "BSE"]:
+                if self.get_exchange(akshare_symbol) in ["SSE", "SZSE", "BSE"]:
                     return self._query_stock_bar_history(req, akshare_symbol)
                 else:
                     output(f"不支持的交易所: {exchange_str}")
