@@ -90,7 +90,7 @@ class BacktestingEngine:
 
         # 盈亏计算
         self.daily_results: dict[date, PortfolioDailyResult] = {}  # 每日盈亏结果 {日期: 结果}
-        self.daily_df: pl.DataFrame                      # 每日盈亏DataFrame
+        self.daily_df: pl.DataFrame                      # 每日盈亏数据框
 
         # 辅助数据
         self.pre_closes: defaultdict = defaultdict(float)  # 昨日收盘价 {合约: 价格}
@@ -397,7 +397,7 @@ class BacktestingEngine:
             daily_return = cast(float, df["return"].mean()) * 100
             return_std = cast(float, df["return"].std()) * 100
 
-            # 计算Sharpe比率
+            # 计算夏普比率
             if return_std:
                 daily_risk_free = self.risk_free / np.sqrt(self.annual_days)
                 sharpe_ratio = (daily_return - daily_risk_free) / return_std * np.sqrt(self.annual_days)
@@ -516,7 +516,17 @@ class BacktestingEngine:
         fig.show()
 
     def show_performance(self, benchmark_symbol: str) -> None:
-        """Display performance metrics"""
+        """
+        显示绩效指标
+
+        Args:
+            benchmark_symbol: 基准合约代码，如 "IF88.CFFEX"
+
+        功能：
+        - 加载基准价格数据
+        - 计算策略相对于基准的超额收益
+        - 生成包含Alpha、回撤等指标的复合图表
+        """
         # 加载基准价格
         benchmark_bars: list[BarData] = self.lab.load_bar_data(benchmark_symbol, self.interval, self.start, self.end)
 
@@ -541,17 +551,17 @@ class BacktestingEngine:
                 # 超额收益率
                 excess_return=(pl.col("cumulative_return") - pl.col("benchmark_return"))
             ).with_columns(
-                # Net excess return
+                # 净超额收益率
                 net_excess_return=(pl.col("excess_return") - pl.col("cumulative_cost")),
             ).with_columns(
-                # 超额收益率 drawdown
+                # 超额收益率回撤
                 excess_return_drawdown=(pl.col("excess_return") - pl.col("excess_return").cum_max()),
-                # Net excess return drawdown
+                # 净超额收益率回撤
                 net_excess_return_drawdown=(pl.col("net_excess_return") - pl.col("net_excess_return").cum_max())
             )
         )
 
-        # Draw chart
+        # 绘制图表
         fig: go.Figure = make_subplots(
             rows=5,
             cols=1,
@@ -637,7 +647,17 @@ class BacktestingEngine:
         fig.show()
 
     def update_daily_close(self, bars: dict[str, BarData], dt: datetime) -> None:
-        """Update daily closing price"""
+        """
+        更新日度收盘价
+
+        Args:
+            bars: K线数据字典 {合约代码: K线数据}
+            dt: 当前日期时间
+
+        功能：
+        - 更新各合约的收盘价到每日结果中
+        - 如果没有当日K线数据，使用昨日收盘价填充
+        """
         d: date = dt.date()
 
         close_prices: dict[str, float] = {}
@@ -655,7 +675,19 @@ class BacktestingEngine:
             self.daily_results[d] = PortfolioDailyResult(d, close_prices)
 
     def new_bars(self, dt: datetime) -> None:
-        """Push historical data"""
+        """
+        推送历史数据
+
+        Args:
+            dt: 当前日期时间
+
+        功能：
+        - 按时间顺序处理每个交易日的K线数据
+        - 更新合约的最新K线数据
+        - 触发订单撮合逻辑
+        - 调用策略的on_bars方法
+        - 更新每日收盘价结果
+        """
         self.datetime = dt
 
         bars: dict[str, BarData] = {}
@@ -667,13 +699,13 @@ class BacktestingEngine:
 
             bar: BarData | None = self.history_data.get((dt, vt_symbol), None)
 
-            # Check if historical data for the specified time of the contract is obtained
+            # 检查是否获取到指定合约在指定时间的历史数据
             if bar:
-                # Update K-line for order matching
+                # 更新订单撮合的K线数据
                 self.bars[vt_symbol] = bar
-                # Cache K-line data for strategy.on_bars update
+                # 缓存K线数据用于策略on_bars更新
                 bars[vt_symbol] = bar
-            # If not available, but there is contract data cached in the self.bars dictionary, use previous data to fill
+            # 如果不可用，但有合约数据缓存在self.bars字典中，使用之前的数据填充
             elif vt_symbol in self.bars:
                 old_bar: BarData = self.bars[vt_symbol]
 
@@ -695,7 +727,15 @@ class BacktestingEngine:
         self.update_daily_close(self.bars, dt)
 
     def cross_order(self) -> None:
-        """Match limit orders"""
+        """
+        撮合限价单
+
+        功能：
+        - 根据当日K线数据撮合未成交的限价单
+        - 计算成交价格（最优价或指定价格）
+        - 生成成交记录并更新订单状态
+        - 计算手续费和更新可用资金
+        """
         for order in list(self.active_limit_orders.values()):
             bar: BarData = self.bars[order.vt_symbol]
 
@@ -704,37 +744,37 @@ class BacktestingEngine:
             long_best_price: float = bar.open_price
             short_best_price: float = bar.open_price
 
-            # Push order status update for unfilled orders
+            # 推送未成交订单状态更新
             if order.status == Status.SUBMITTING:
                 order.status = Status.NOTTRADED
                 self.strategy.update_order(order)
 
-            # Calculate price limits
+            # 计算价格限制
             pricetick: float = self.priceticks[order.vt_symbol]
             pre_close: float = self.pre_closes.get(order.vt_symbol, 0)
 
             limit_up: float = round_to(pre_close * 1.1, pricetick)
             limit_down: float = round_to(pre_close * 0.9, pricetick)
 
-            # Check limit orders that can be matched
+            # 检查可以撮合的限价单
             long_cross: bool = (
                 order.direction == Direction.LONG
                 and order.price >= long_cross_price
                 and long_cross_price > 0
-                and bar.low_price < limit_up        # Not a full-day limit-up market
+                and bar.low_price < limit_up        # 不是全天涨停市场
             )
 
             short_cross: bool = (
                 order.direction == Direction.SHORT
                 and order.price <= short_cross_price
                 and short_cross_price > 0
-                and bar.high_price > limit_down     # Not a full-day limit-down market
+                and bar.high_price > limit_down     # 不是全天跌停市场
             )
 
             if not long_cross and not short_cross:
                 continue
 
-            # Push order status update for filled orders
+            # 推送成交订单状态更新
             order.traded = order.volume
             order.status = Status.ALLTRADED
             self.strategy.update_order(order)
@@ -742,7 +782,7 @@ class BacktestingEngine:
             if order.vt_orderid in self.active_limit_orders:
                 self.active_limit_orders.pop(order.vt_orderid)
 
-            # Generate trade information
+            # 生成成交信息
             self.trade_count += 1
 
             if long_cross:
@@ -763,7 +803,7 @@ class BacktestingEngine:
                 gateway_name=self.gateway_name,
             )
 
-            # Update available funds
+            # 更新可用资金
             size: float = self.sizes[trade.vt_symbol]
 
             trade_turnover: float = trade.price * trade.volume * size
@@ -780,12 +820,21 @@ class BacktestingEngine:
 
             self.cash -= trade_commission
 
-            # Push trade information
+            # 推送成交信息
             self.strategy.update_trade(trade)
             self.trades[trade.vt_tradeid] = trade
 
     def get_signal(self) -> pl.DataFrame:
-        """Get model prediction signal for current time"""
+        """
+        获取当前时间的模型预测信号
+
+        Returns:
+            DataFrame: 包含预测信号的DataFrame，如果找不到则返回空DataFrame
+
+        功能：
+        - 根据当前回测时间查找对应的模型预测信号
+        - 支持ML模型的预测结果集成
+        """
         if not self.datetime:
             self.write_log("尚未开始数据回放，无法加载模型预测值")
             return pl.DataFrame()
@@ -807,7 +856,25 @@ class BacktestingEngine:
         price: float,
         volume: float,
     ) -> list[str]:
-        """Send order"""
+        """
+        发送订单
+
+        Args:
+            strategy: 策略实例
+            vt_symbol: 合约代码，如 "IF88.CFFEX"
+            direction: 交易方向 (Direction.LONG/Direction.SHORT)
+            offset: 开平标志 (Offset.OPEN/Offset.CLOSE)
+            price: 委托价格
+            volume: 委托数量
+
+        Returns:
+            list[str]: 订单ID列表
+
+        功能：
+        - 创建新的限价单并记录到系统中
+        - 将订单添加到活跃订单列表中
+        - 支持多合约同时下单
+        """
         price = round_to(price, self.priceticks[vt_symbol])
         symbol, exchange = extract_vt_symbol(vt_symbol)
 
@@ -832,7 +899,18 @@ class BacktestingEngine:
         return [order.vt_orderid]
 
     def cancel_order(self, strategy: AlphaStrategy, vt_orderid: str) -> None:
-        """Cancel order"""
+        """
+        取消订单
+
+        Args:
+            strategy: 策略实例
+            vt_orderid: 订单ID
+
+        功能：
+        - 从活跃订单列表中移除指定订单
+        - 更新订单状态为已撤销
+        - 通知策略订单状态变化
+        """
         if vt_orderid not in self.active_limit_orders:
             return
         order: OrderData = self.active_limit_orders.pop(vt_orderid)
@@ -841,28 +919,83 @@ class BacktestingEngine:
         self.strategy.update_order(order)
 
     def write_log(self, msg: str, strategy: AlphaStrategy | None = None) -> None:
-        """Output log message"""
+        """
+        输出日志消息
+
+        Args:
+            msg: 日志消息内容
+            strategy: 可选的策略实例，用于关联日志
+
+        功能：
+        - 将带时间戳的日志消息添加到日志列表
+        - 支持与策略实例关联的定向日志
+        """
         msg = f"{self.datetime}  {msg}"
         self.logs.append(msg)
 
     def get_all_trades(self) -> list[TradeData]:
-        """Get all trade information"""
+        """
+        获取所有成交信息
+
+        Returns:
+            list[TradeData]: 成交数据列表
+
+        功能：
+        - 返回回测期间所有的成交记录
+        - 可用于分析交易频率和模式
+        """
         return list(self.trades.values())
 
     def get_all_orders(self) -> list[OrderData]:
-        """Get all order information"""
+        """
+        获取所有订单信息
+
+        Returns:
+            list[OrderData]: 订单数据列表
+
+        功能：
+        - 返回回测期间所有的订单记录
+        - 包括已成交、未成交和已撤销的订单
+        """
         return list(self.limit_orders.values())
 
     def get_all_daily_results(self) -> list["PortfolioDailyResult"]:
-        """Get all daily profit and loss information"""
+        """
+        获取所有日度盈亏信息
+
+        Returns:
+            list[PortfolioDailyResult]: 每日盈亏结果列表
+
+        功能：
+        - 返回回测期间每天的盈亏计算结果
+        - 包含持仓盈亏、交易盈亏等详细信息
+        """
         return list(self.daily_results.values())
 
     def get_cash_available(self) -> float:
-        """Get current available cash"""
+        """
+        获取当前可用资金
+
+        Returns:
+            float: 当前可用资金余额
+
+        功能：
+        - 返回扣除持仓市值后的可用现金
+        - 用于检查是否有足够资金开新仓
+        """
         return self.cash
 
     def get_holding_value(self) -> float:
-        """Get current holding market value"""
+        """
+        获取当前持仓市值
+
+        Returns:
+            float: 当前持仓的总市值
+
+        功能：
+        - 计算所有持仓合约的当前市值
+        - 基于最新收盘价和持仓数量计算
+        """
         holding_value: float = 0
 
         for vt_symbol, pos in self.strategy.pos_data.items():
@@ -875,10 +1008,23 @@ class BacktestingEngine:
 
 
 class ContractDailyResult:
-    """Contract daily profit and loss result"""
+    """
+    合约日度盈亏结果类
+
+    功能：
+    - 管理单个合约的日度盈亏计算
+    - 记录持仓变化和交易盈亏
+    - 支持多合约组合的盈亏分析
+    """
 
     def __init__(self, result_date: date, close_price: float) -> None:
-        """Constructor"""
+        """
+        构造函数
+
+        Args:
+            result_date: 结果日期
+            close_price: 收盘价
+        """
         self.date: date = result_date
         self.close_price: float = close_price
         self.pre_close: float = 0
@@ -898,7 +1044,16 @@ class ContractDailyResult:
         self.net_pnl: float = 0
 
     def add_trade(self, trade: TradeData) -> None:
-        """Add trade information"""
+        """
+        添加成交信息
+
+        Args:
+            trade: 成交数据对象
+
+        功能：
+        - 将当日成交记录添加到合约结果中
+        - 用于计算交易盈亏
+        """
         self.trades.append(trade)
 
     def calculate_pnl(
@@ -909,20 +1064,33 @@ class ContractDailyResult:
         long_rate: float,
         short_rate: float
     ) -> None:
-        """Calculate profit and loss"""
-        # If there is no previous close price, use 1 instead to avoid division error
+        """
+        计算盈亏
+
+        Args:
+            pre_close: 前收盘价
+            start_pos: 起始持仓
+            size: 合约乘数
+            long_rate: 多头手续费率
+            short_rate: 空头手续费率
+
+        功能：
+        - 计算持仓盈亏和交易盈亏
+        - 考虑手续费影响
+        """
+        # 如果没有前收盘价，使用1代替以避免除零错误
         if pre_close:
             self.pre_close = pre_close
-        # else:
+        # 否则：
         #     self.pre_close = 1
 
-        # Calculate holding profit and loss
+        # 计算持仓盈亏
         self.start_pos = start_pos
         self.end_pos = start_pos
 
         self.holding_pnl = self.start_pos * (self.close_price - self.pre_close) * size
 
-        # Calculate trading profit and loss
+        # 计算交易盈亏
         self.trade_count = len(self.trades)
 
         for trade in self.trades:
@@ -941,20 +1109,45 @@ class ContractDailyResult:
             self.turnover += turnover
             self.commission += turnover * rate
 
-        # Calculate daily profit and loss
+        # 计算日度盈亏
         self.total_pnl = self.trading_pnl + self.holding_pnl
         self.net_pnl = self.total_pnl - self.commission
 
     def update_close_price(self, close_price: float) -> None:
-        """Update daily close price"""
+        """
+        更新日度收盘价
+
+        Args:
+            close_price: 收盘价
+
+        功能：
+        - 更新合约的收盘价
+        """
         self.close_price = close_price
 
 
 class PortfolioDailyResult:
-    """Portfolio daily profit and loss result"""
+    """
+    组合日度盈亏结果类
+
+    Args:
+        result_date: 结果日期
+        close_prices: 各合约收盘价字典 {合约代码: 价格}
+
+    功能：
+    - 管理多合约组合的日度盈亏计算
+    - 汇总各合约的盈亏结果
+    - 支持复杂投资组合的盈亏分析
+    """
 
     def __init__(self, result_date: date, close_prices: dict[str, float]) -> None:
-        """Constructor"""
+        """
+        构造函数
+
+        Args:
+            result_date: 结果日期
+            close_prices: 各合约收盘价字典 {合约代码: 价格}
+        """
         self.date: date = result_date
         self.close_prices: dict[str, float] = close_prices
         self.pre_closes: dict[str, float] = {}
@@ -975,7 +1168,16 @@ class PortfolioDailyResult:
         self.net_pnl: float = 0
 
     def add_trade(self, trade: TradeData) -> None:
-        """Add trade information"""
+        """
+        添加成交信息
+
+        Args:
+            trade: 成交数据对象
+
+        功能：
+        - 将当日成交记录添加到组合结果中
+        - 自动分发到对应的合约结果中
+        """
         contract_result: ContractDailyResult = self.contract_results[trade.vt_symbol]
         contract_result.add_trade(trade)
 
@@ -987,7 +1189,20 @@ class PortfolioDailyResult:
         long_rates: dict[str, float],
         short_rates: dict[str, float]
     ) -> None:
-        """Calculate profit and loss"""
+        """
+        计算盈亏
+
+        Args:
+            pre_closes: 各合约前收盘价字典 {合约代码: 价格}
+            start_poses: 各合约起始持仓字典 {合约代码: 数量}
+            sizes: 各合约乘数字典 {合约代码: 乘数}
+            long_rates: 各合约多头手续费率字典 {合约代码: 费率}
+            short_rates: 各合约空头手续费率字典 {合约代码: 费率}
+
+        功能：
+        - 汇总所有合约的盈亏结果
+        - 计算总交易盈亏、手续费等
+        """
         self.pre_closes = pre_closes
         self.start_poses = start_poses
 
@@ -1011,7 +1226,16 @@ class PortfolioDailyResult:
             self.end_poses[vt_symbol] = contract_result.end_pos
 
     def update_close_prices(self, close_prices: dict[str, float]) -> None:
-        """Update daily close prices"""
+        """
+        更新日度收盘价
+
+        Args:
+            close_prices: 各合约收盘价字典 {合约代码: 价格}
+
+        功能：
+        - 更新组合中各合约的收盘价
+        - 如果合约不存在则创建新的合约结果对象
+        """
         self.close_prices.update(close_prices)
 
         for vt_symbol, close_price in close_prices.items():
