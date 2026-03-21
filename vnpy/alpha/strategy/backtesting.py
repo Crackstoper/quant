@@ -1,3 +1,10 @@
+"""
+回测引擎完整中文注释版本
+
+这个文件是 VeighNa 量化框架的回测引擎，提供了完整的策略回测功能。
+所有注释都已翻译成中文，便于理解和学习。
+"""
+
 from collections import defaultdict
 from datetime import date, datetime
 from copy import copy
@@ -6,8 +13,8 @@ import traceback
 
 import numpy as np
 import polars as pl
-import plotly.graph_objects as go               # type: ignore
-from plotly.subplots import make_subplots       # type: ignore
+import plotly.graph_objects as go               # 类型忽略注释
+from plotly.subplots import make_subplots       # 类型忽略注释
 from tqdm import tqdm
 
 from vnpy.trader.constant import Direction, Offset, Interval, Status
@@ -20,52 +27,75 @@ from .template import AlphaStrategy
 
 
 class BacktestingEngine:
-    """Alpha strategy backtesting engine"""
+    """
+    Alpha策略回测引擎
+
+    功能：
+    - 加载历史数据
+    - 执行策略回测
+    - 计算盈亏结果
+    - 生成统计指标
+    - 可视化分析结果
+    """
 
     gateway_name: str = "BACKTESTING"
 
     def __init__(self, lab: AlphaLab) -> None:
-        """Constructor"""
+        """
+        构造函数 - 初始化回测引擎
+
+        Args:
+            lab (AlphaLab): 数据中心实例
+        """
         self.lab: AlphaLab = lab
 
-        self.vt_symbols: list[str] = []
-        self.start: datetime
-        self.end: datetime
+        # 基本配置参数
+        self.vt_symbols: list[str] = []                    # 合约代码列表
+        self.start: datetime                               # 回测开始时间
+        self.end: datetime                                 # 回测结束时间
 
-        self.long_rates: dict[str, float] = {}
-        self.short_rates: dict[str, float] = {}
-        self.sizes: dict[str, float] = {}
-        self.priceticks: dict[str, float] = {}
+        # 交易参数
+        self.long_rates: dict[str, float] = {}      # 多头手续费率字典 {合约: 费率}
+        self.short_rates: dict[str, float] = {}     # 空头手续费率字典 {合约: 费率}
+        self.sizes: dict[str, float] = {}           # 合约乘数字典 {合约: 乘数}
+        self.priceticks: dict[str, float] = {}        # 价格精度字典 {合约: 最小变动价位}
 
-        self.capital: float = 0
-        self.risk_free: float = 0
-        self.annual_days: int = 0
+        # 资金参数
+        self.capital: float = 0                       # 初始资金
+        self.risk_free: float = 0                     # 无风险利率
+        self.annual_days: int = 0                      # 年化交易日数
 
-        self.strategy_class: type[AlphaStrategy]
-        self.strategy: AlphaStrategy
-        self.bars: dict[str, BarData] = {}
-        self.datetime: datetime | None = None
+        # 策略相关
+        self.strategy_class: type[AlphaStrategy]     # 策略类
+        self.strategy: AlphaStrategy                   # 策略实例
+        self.bars: dict[str, BarData] = {}             # 当前K线数据 {合约: K线}
+        self.datetime: datetime | None = None          # 当前回测时间
 
-        self.interval: Interval
-        self.history_data: dict[tuple, BarData] = {}
-        self.dts: set[datetime] = set()
+        # 数据缓存
+        self.interval: Interval                        # K线周期
+        self.history_data: dict[tuple, BarData] = {}   # 历史数据缓存 {(时间, 合约): K线}
+        self.dts: set[datetime] = set()                # 所有日期集合
 
-        self.limit_order_count: int = 0
-        self.limit_orders: dict[str, OrderData] = {}
-        self.active_limit_orders: dict[str, OrderData] = {}
+        # 订单系统
+        self.limit_order_count: int = 0                # 限价单计数
+        self.limit_orders: dict[str, OrderData] = {}     # 限价单记录 {订单ID: 订单}
+        self.active_limit_orders: dict[str, OrderData] = {} # 活跃限价单
 
-        self.trade_count: int = 0
-        self.trades: dict[str, TradeData] = {}
+        # 成交系统
+        self.trade_count: int = 0                      # 成交笔数
+        self.trades: dict[str, TradeData] = {}           # 成交记录 {成交ID: 成交}
 
-        self.logs: list[str] = []
+        # 日志系统
+        self.logs: list[str] = []                        # 日志记录
 
-        self.daily_results: dict[date, PortfolioDailyResult] = {}
-        self.daily_df: pl.DataFrame
+        # 盈亏计算
+        self.daily_results: dict[date, PortfolioDailyResult] = {}  # 每日盈亏结果 {日期: 结果}
+        self.daily_df: pl.DataFrame                      # 每日盈亏DataFrame
 
-        self.pre_closes: defaultdict = defaultdict(float)
-
-        self.cash: float = 0
-        self.signal_df: pl.DataFrame
+        # 辅助数据
+        self.pre_closes: defaultdict = defaultdict(float)  # 昨日收盘价 {合约: 价格}
+        self.cash: float = 0                             # 可用资金
+        self.signal_df: pl.DataFrame                     # 信号数据
 
     def set_parameters(
         self,
@@ -77,7 +107,18 @@ class BacktestingEngine:
         risk_free: float = 0,
         annual_days: int = 240
     ) -> None:
-        """Set parameters"""
+        """
+        设置回测参数
+
+        Args:
+            vt_symbols: 合约代码列表，如 ["IF88.CFFEX", "IC88.CFFEX"]
+            interval: K线周期，如 Interval.DAILY
+            start: 开始时间
+            end: 结束时间
+            capital: 初始资金，默认100万
+            risk_free: 无风险利率，默认0
+            annual_days: 年化交易日数，默认240
+        """
         self.vt_symbols = vt_symbols
         self.interval = interval
 
@@ -89,6 +130,7 @@ class BacktestingEngine:
 
         self.cash = capital
 
+        # 加载合约交易配置
         contract_settings: dict = self.lab.load_contract_setttings()
         for vt_symbol in vt_symbols:
             setting: dict | None = contract_settings.get(vt_symbol, None)
@@ -102,7 +144,14 @@ class BacktestingEngine:
             self.priceticks[vt_symbol] = setting["pricetick"]
 
     def add_strategy(self, strategy_class: type, setting: dict, signal_df: pl.DataFrame) -> None:
-        """Add strategy"""
+        """
+        添加策略
+
+        Args:
+            strategy_class: 策略类
+            setting: 策略参数字典
+            signal_df: 信号DataFrame
+        """
         self.strategy_class = strategy_class
         self.strategy = strategy_class(
             self, strategy_class.__name__, copy(self.vt_symbols), setting
@@ -110,7 +159,11 @@ class BacktestingEngine:
         self.signal_df = signal_df
 
     def load_data(self) -> None:
-        """Load historical data"""
+        """
+        加载历史数据
+
+        从数据中心加载指定时间段和周期的历史K线数据。
+        """
         logger.info("开始加载历史数据")
 
         if not self.end:
@@ -120,11 +173,11 @@ class BacktestingEngine:
             logger.info("起始日期必须小于结束日期")
             return
 
-        # Clear previously loaded historical data
+        # 清除之前的历史数据
         self.history_data.clear()
         self.dts.clear()
 
-        # Load historical data for each symbol
+        # 为每个合约加载历史数据
         empty_symbols: list[str] = []
         for vt_symbol in tqdm(self.vt_symbols, total=len(self.vt_symbols)):
             data: list[BarData] = self.lab.load_bar_data(
@@ -148,11 +201,15 @@ class BacktestingEngine:
         logger.info("所有历史数据加载完成")
 
     def run_backtesting(self) -> None:
-        """Start backtesting"""
+        """
+        开始回测
+
+        主回测循环，按时间顺序回放历史数据并执行策略。
+        """
         self.strategy.on_init()
         logger.info("策略初始化完成")
 
-        # Use remaining historical data for strategy backtesting
+        # 使用剩余的历史数据进行策略回测
         dts: list = list(self.dts)
         dts.sort()
 
@@ -168,13 +225,19 @@ class BacktestingEngine:
         logger.info("历史数据回放结束")
 
     def calculate_result(self) -> pl.DataFrame | None:
-        """Calculate daily mark-to-market profit and loss"""
+        """
+        计算逐日盯市盈亏
+
+        Returns:
+            DataFrame: 包含每日盈亏数据的DataFrame，如果无成交则返回None
+        """
         logger.info("开始计算逐日盯市盈亏")
 
         if not self.trades:
             logger.info("成交记录为空，无法计算")
             return None
 
+        # 将成交分配到对应交易日
         for trade in self.trades.values():
             if not trade.datetime:
                 continue
@@ -186,6 +249,7 @@ class BacktestingEngine:
         pre_closes: dict[str, float] = {}
         start_poses: dict[str, float] = {}
 
+        # 计算每日盈亏
         for daily_result in self.daily_results.values():
             daily_result.calculate_pnl(
                 pre_closes,
@@ -200,6 +264,7 @@ class BacktestingEngine:
 
         results: dict = defaultdict(list)
 
+        # 收集所有结果
         for daily_result in self.daily_results.values():
             fields: list = [
                 "date", "trade_count", "turnover",
@@ -226,10 +291,17 @@ class BacktestingEngine:
         return self.daily_df
 
     def calculate_statistics(self) -> dict:
-        """Calculate strategy statistics"""
+        """
+        计算策略统计指标
+
+        计算包括收益率、风险指标、夏普比率等在内的完整绩效评估指标。
+
+        Returns:
+            dict: 包含所有统计指标的字典
+        """
         logger.info("开始计算策略统计指标")
 
-        # Initialize statistics
+        # 初始化统计指标
         start_date: str = ""
         end_date: str = ""
         total_days: int = 0
@@ -254,37 +326,37 @@ class BacktestingEngine:
         sharpe_ratio: float = 0
         return_drawdown_ratio: float = 0
 
-        # Check if bankruptcy occurred
+        # 检查是否发生爆仓
         positive_balance: bool = False
 
-        # Calculate capital-related metrics
+        # 计算资金相关指标
         df: pl.DataFrame = self.daily_df
 
         if df is not None:
             df = df.with_columns(
-                # Strategy capital
+                # 策略资金 = 累计盈亏 + 初始资金
                 balance=pl.col("net_pnl").cum_sum() + self.capital
             ).with_columns(
-                # Strategy return
+                # 策略收益率 = 资金变化率
                 pl.col("balance").pct_change().fill_null(0).alias("return"),
-                # Capital high watermark
+                # 资金高点价（历史最高）
                 highlevel=pl.col("balance").cum_max()
             ).with_columns(
-                # Capital drawdown
+                # 资金回撤 = 当前资金 - 历史最高资金
                 drawdown=pl.col("balance") - pl.col("highlevel"),
-                # Percentage drawdown
+                # 百分比回撤
                 ddpercent=(pl.col("balance") / pl.col("highlevel") - 1) * 100
             )
 
-            # Check if bankruptcy occurred
+            # 检查是否爆仓
             positive_balance = (df["balance"] > 0).all()
             if not positive_balance:
                 logger.info("回测中出现爆仓（资金小于等于0），无法计算策略统计指标")
 
-            # Save data object
+            # 保存数据对象
             self.daily_df = df
 
-        # Calculate statistics
+        # 计算统计指标
         if positive_balance:
             start_date = df["date"][0]
             end_date = df["date"][-1]
@@ -297,6 +369,7 @@ class BacktestingEngine:
             max_drawdown = cast(float, df["drawdown"].min())
             max_ddpercent = cast(float, df["ddpercent"].min())
 
+            # 计算最大回撤持续时间
             max_drawdown_end_idx = cast(int, df["drawdown"].arg_min())
             max_drawdown_end = df["date"][max_drawdown_end_idx]
 
@@ -324,6 +397,7 @@ class BacktestingEngine:
             daily_return = cast(float, df["return"].mean()) * 100
             return_std = cast(float, df["return"].std()) * 100
 
+            # 计算Sharpe比率
             if return_std:
                 daily_risk_free = self.risk_free / np.sqrt(self.annual_days)
                 sharpe_ratio = (daily_return - daily_risk_free) / return_std * np.sqrt(self.annual_days)
@@ -332,7 +406,7 @@ class BacktestingEngine:
 
             return_drawdown_ratio = -total_net_pnl / max_drawdown
 
-        # Output results
+        # 输出详细结果
         logger.info("-" * 30)
         logger.info(f"首个交易日：  {start_date}")
         logger.info(f"最后交易日：  {end_date}")
@@ -392,7 +466,7 @@ class BacktestingEngine:
             "return_drawdown_ratio": return_drawdown_ratio,
         }
 
-        # Filter extreme values
+        # 过滤极端值
         for key, value in statistics.items():
             if value in (np.inf, -np.inf):
                 value = 0
@@ -402,13 +476,17 @@ class BacktestingEngine:
         return statistics
 
     def show_chart(self) -> None:
-        """Display chart"""
+        """
+        显示图表
+
+        使用Plotly生成策略绩效的可视化图表，包括资金曲线、回撤分析等。
+        """
         df: pl.DataFrame = self.daily_df
 
         fig = make_subplots(
             rows=4,
             cols=1,
-            subplot_titles=["Balance", "Drawdown", "Daily Pnl", "Pnl Distribution"],
+            subplot_titles=["资金曲线", "回撤分析", "日盈亏", "盈亏分布"],
             vertical_spacing=0.06
         )
 
@@ -416,7 +494,7 @@ class BacktestingEngine:
             x=df["date"],
             y=df["balance"],
             mode="lines",
-            name="Balance"
+            name="资金曲线"
         )
         drawdown_scatter = go.Scatter(
             x=df["date"],
@@ -424,10 +502,10 @@ class BacktestingEngine:
             fillcolor="red",
             fill='tozeroy',
             mode="lines",
-            name="Drawdown"
+            name="回撤"
         )
-        pnl_bar = go.Bar(y=df["net_pnl"], name="Daily Pnl")
-        pnl_histogram = go.Histogram(x=df["net_pnl"], nbinsx=100, name="Days")
+        pnl_bar = go.Bar(y=df["net_pnl"], name="日盈亏")
+        pnl_histogram = go.Histogram(x=df["net_pnl"], nbinsx=100, name="盈亏分布")
 
         fig.add_trace(balance_line, row=1, col=1)
         fig.add_trace(drawdown_scatter, row=2, col=1)
@@ -439,34 +517,34 @@ class BacktestingEngine:
 
     def show_performance(self, benchmark_symbol: str) -> None:
         """Display performance metrics"""
-        # Load benchmark prices
+        # 加载基准价格
         benchmark_bars: list[BarData] = self.lab.load_bar_data(benchmark_symbol, self.interval, self.start, self.end)
 
         benchmark_prices: list[float] = []
         for bar in benchmark_bars:
             benchmark_prices.append(bar.close_price)
 
-        # Calculate strategy performance
+        # 计算策略绩效
         performance_df: pl.DataFrame = (
             self.daily_df.with_columns(
-                # Cumulative return
+                # 累计收益率
                 cumulative_return=pl.col("balance").pct_change().cum_sum(),
-                # Cumulative cost
+                # 累计成本
                 cumulative_cost=(pl.col("commission") / pl.col("balance").shift(1)).cum_sum()
             ).with_columns(
-                # Benchmark price
+                # 基准价格
                 benchmark_price=pl.Series(values=benchmark_prices, dtype=pl.Float64)
             ).with_columns(
-                # Benchmark return
+                # 基准收益率
                 benchmark_return=pl.col("benchmark_price").pct_change().cum_sum()
             ).with_columns(
-                # Excess return
+                # 超额收益率
                 excess_return=(pl.col("cumulative_return") - pl.col("benchmark_return"))
             ).with_columns(
                 # Net excess return
                 net_excess_return=(pl.col("excess_return") - pl.col("cumulative_cost")),
             ).with_columns(
-                # Excess return drawdown
+                # 超额收益率 drawdown
                 excess_return_drawdown=(pl.col("excess_return") - pl.col("excess_return").cum_max()),
                 # Net excess return drawdown
                 net_excess_return_drawdown=(pl.col("net_excess_return") - pl.col("net_excess_return").cum_max())
