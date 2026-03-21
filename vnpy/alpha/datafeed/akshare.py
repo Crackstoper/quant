@@ -11,6 +11,9 @@ from typing import Callable, Optional
 import akshare as ak
 import pandas as pd
 
+
+from vnpy.trader.database import DB_TZ
+
 from vnpy.trader.constant import Exchange, Interval
 from vnpy.trader.datafeed import BaseDatafeed
 from vnpy.trader.object import BarData, HistoryRequest, TickData
@@ -91,15 +94,14 @@ class AkshareDatafeed(BaseDatafeed):
 
             # 根据交易所类型选择不同的API
             if exchange_str in ["SSE", "SZSE", "BSE"]:
+
                 return self._query_stock_bar_history(req, akshare_symbol)
             elif exchange_str == "CFFEX":
                 return self._query_futures_bar_history(req, akshare_symbol)
             else:
-                if self.get_exchange(akshare_symbol) in ["SSE", "SZSE", "BSE"]:
-                    return self._query_stock_bar_history(req, akshare_symbol)
-                else:
-                    output(f"不支持的交易所: {exchange_str}")
-                return []
+                output(f"不支持的交易所: {exchange_str}")
+            return []
+
 
         except Exception as e:
             output(f"查询K线历史数据异常: {e}")
@@ -112,13 +114,27 @@ class AkshareDatafeed(BaseDatafeed):
             start_date = req.start.strftime("%Y%m%d")
             end_date = req.end.strftime("%Y%m%d") if req.end else datetime.now().strftime("%Y%m%d")
 
-            # 调用akshare API
-            df = ak.stock_zh_a_hist(
-                symbol=symbol,
-                period=self._interval_to_akshare_period(req.interval),
-                start_date=start_date,
-                end_date=end_date
-            )
+
+
+            if symbol in ["000300", "000905", "000852"]:
+                df = ak.stock_zh_index_daily(f"sh{symbol}")
+                df["date"] = pd.to_datetime(df["date"])
+                df = df[(df["date"] >= pd.to_datetime(start_date)) & (df["date"] <= pd.to_datetime(end_date))]
+                df.rename(columns={
+                    "date": "日期",
+                    "open": "开盘",
+                    "high": "最高",
+                    "low": "最低",
+                    "close": "收盘",
+                    "volume": "成交量"
+                }, inplace=True)
+            else:
+                df = ak.stock_zh_a_hist(
+                    symbol=symbol,
+                    period=self._interval_to_akshare_period(req.interval),
+                    start_date=start_date,
+                    end_date=end_date
+                )
 
             if df.empty:
                 self._output(f"未获取到{req.symbol}的历史数据")
@@ -137,7 +153,7 @@ class AkshareDatafeed(BaseDatafeed):
                     low_price=float(row["最低"]),
                     close_price=float(row["收盘"]),
                     volume=float(row["成交量"]),
-                    turnover=float(row["成交额"]) if not pd.isna(row["成交额"]) else 0.0,
+                    turnover=float(row.get("成交额", 0) or 0),
                     gateway_name="AKSHARE"
                 )
                 bars.append(bar)
@@ -293,3 +309,42 @@ class AkshareDatafeed(BaseDatafeed):
         except Exception as e:
             self._output(f"获取支持证券列表异常: {e}")
             return []
+
+class StandardAkData:
+    def __init__(self):
+
+        pass
+
+    def get_exchange(self, code):
+        code = str(code)
+        if code.startswith("6"):
+            return "SSE"  # 上海证券交易所
+        elif code.startswith(("0", "3")):
+            return "SZSE"  # 深圳证券交易所
+        elif code.startswith(("4", "8")):
+            return "BSE"  # 北京证券交易所
+        else:
+            return "UNKNOWN"
+
+    def format_req(self, req: HistoryRequest) -> HistoryRequest:
+        akshare_symbol=req.symbol
+        exchange_str = req.exchange.name
+        if exchange_str == "MIANA":
+            exchange_str = self.get_exchange(akshare_symbol)
+            req.vt_symbol = f"{akshare_symbol}.{exchange_str}"
+            req.exchange = Exchange(exchange_str)
+
+        start = datetime.strptime(req.start, "%Y-%m-%d")
+        req.start = start.replace(tzinfo=DB_TZ)
+
+        end = datetime.strptime(req.end, "%Y-%m-%d")
+        req.end = end.replace(tzinfo=DB_TZ)
+        return req
+
+if __name__ == "__main__":
+    akshare = StandardAkData()
+    start_date = "2020-01-01"
+    end_date = "2026-3-20"
+    req = HistoryRequest("000016", Exchange("MIANA"), start_date, end_date, Interval.DAILY)
+    a = akshare.format_req(req)
+    b=1
