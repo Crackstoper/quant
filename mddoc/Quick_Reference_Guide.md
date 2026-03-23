@@ -324,9 +324,11 @@ pip install PyQt5
 **Q: 如何获取历史数据？**
 
 A: 使用Alpha模块：
+
 ```python
 from vnpy.alpha.lab import AlphaLab
-lab = AlphaLab("data")
+
+lab = AlphaLab("../data")
 dataset = lab.load_data(symbols=["000001.SZ"])
 ```
 
