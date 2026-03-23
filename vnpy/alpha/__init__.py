@@ -4,6 +4,9 @@ from .model import AlphaModel
 from .strategy import AlphaStrategy, BacktestingEngine
 from .lab import AlphaLab
 
+# 导入数据服务插件
+from .datafeed import AkshareDatafeed
+
 
 __all__ = [
     "logger",
@@ -13,5 +16,6 @@ __all__ = [
     "AlphaModel",
     "AlphaStrategy",
     "BacktestingEngine",
-    "AlphaLab"
+    "AlphaLab",
+    "AkshareDatafeed"
 ]

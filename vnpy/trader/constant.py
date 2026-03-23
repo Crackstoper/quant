@@ -133,7 +133,7 @@ class Exchange(Enum):
     KRX = "KRX"             # Korean Exchange
     OTC = "OTC"             # OTC Product (Forex/CFD/Pink Sheet Equity)
     IBKRATS = "IBKRATS"     # Paper Trading Exchange of IB
-
+    MIANA = "MIANA"
     # Special Function
     LOCAL = "LOCAL"         # For local generated data
     GLOBAL = "GLOBAL"       # For those exchanges not supported yet

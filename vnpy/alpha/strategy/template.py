@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 class AlphaStrategy(metaclass=ABCMeta):
-    """Alpha strategy template class"""
+    """Alpha策略模板类"""
 
     def __init__(
         self,
@@ -22,41 +22,41 @@ class AlphaStrategy(metaclass=ABCMeta):
         vt_symbols: list[str],
         setting: dict
     ) -> None:
-        """Constructor"""
+        """构造函数"""
         self.strategy_engine: BacktestingEngine = strategy_engine
         self.strategy_name: str = strategy_name
         self.vt_symbols: list[str] = vt_symbols
 
-        # Position data dictionaries
-        self.pos_data: dict[str, float] = defaultdict(float)        # Actual positions
-        self.target_data: dict[str, float] = defaultdict(float)     # Target positions
+        # 持仓数据字典
+        self.pos_data: dict[str, float] = defaultdict(float)        # 实际持仓
+        self.target_data: dict[str, float] = defaultdict(float)     # 目标持仓
 
-        # Order cache containers
+        # 订单缓存容器
         self.orders: dict[str, OrderData] = {}
         self.active_orderids: set[str] = set()
 
-        # Set strategy parameters
+        # 设置策略参数
         for k, v in setting.items():
             if hasattr(self, k):
                 setattr(self, k, v)
 
     @abstractmethod
     def on_init(self) -> None:
-        """Initialization callback"""
+        """初始化回调"""
         pass
 
     @abstractmethod
     def on_bars(self, bars: dict[str, BarData]) -> None:
-        """Bar slice callback"""
+        """K线切片回调"""
         pass
 
     @abstractmethod
     def on_trade(self, trade: TradeData) -> None:
-        """Trade callback"""
+        """成交回调"""
         pass
 
     def update_trade(self, trade: TradeData) -> None:
-        """Update trade data"""
+        """更新交易数据"""
         if trade.direction == Direction.LONG:
             self.pos_data[trade.vt_symbol] += trade.volume
         else:
@@ -65,30 +65,30 @@ class AlphaStrategy(metaclass=ABCMeta):
         self.on_trade(trade)
 
     def update_order(self, order: OrderData) -> None:
-        """Update order data"""
+        """更新订单数据"""
         self.orders[order.vt_orderid] = order
 
         if not order.is_active() and order.vt_orderid in self.active_orderids:
             self.active_orderids.remove(order.vt_orderid)
 
     def get_signal(self) -> pl.DataFrame:
-        """Get current signal"""
+        """获取当前信号"""
         return self.strategy_engine.get_signal()
 
     def buy(self, vt_symbol: str, price: float, volume: float) -> list[str]:
-        """Buy to open position"""
+        """买入开仓"""
         return self.send_order(vt_symbol, Direction.LONG, Offset.OPEN, price, volume)
 
     def sell(self, vt_symbol: str, price: float, volume: float) -> list[str]:
-        """Sell to close position"""
+        """卖出平仓"""
         return self.send_order(vt_symbol, Direction.SHORT, Offset.CLOSE, price, volume)
 
     def short(self, vt_symbol: str, price: float, volume: float) -> list[str]:
-        """Sell to open position"""
+        """卖出开仓"""
         return self.send_order(vt_symbol, Direction.SHORT, Offset.OPEN, price, volume)
 
     def cover(self, vt_symbol: str, price: float, volume: float) -> list[str]:
-        """Buy to close position"""
+        """买入平仓"""
         return self.send_order(vt_symbol, Direction.LONG, Offset.CLOSE, price, volume)
 
     def send_order(
@@ -99,7 +99,7 @@ class AlphaStrategy(metaclass=ABCMeta):
         price: float,
         volume: float
     ) -> list[str]:
-        """Send order"""
+        """发送订单"""
         vt_orderids: list = self.strategy_engine.send_order(
             self, vt_symbol, direction, offset, price, volume
         )
@@ -110,43 +110,43 @@ class AlphaStrategy(metaclass=ABCMeta):
         return vt_orderids
 
     def cancel_order(self, vt_orderid: str) -> None:
-        """Cancel order"""
+        """取消订单"""
         self.strategy_engine.cancel_order(self, vt_orderid)
 
     def cancel_all(self) -> None:
-        """Cancel all active orders"""
+        """取消所有活跃订单"""
         for vt_orderid in list(self.active_orderids):
             self.cancel_order(vt_orderid)
 
     def get_pos(self, vt_symbol: str) -> float:
-        """Query current position"""
+        """查询当前持仓"""
         return self.pos_data[vt_symbol]
 
     def get_target(self, vt_symbol: str) -> float:
-        """Query target position"""
+        """查询目标持仓"""
         return self.target_data[vt_symbol]
 
     def set_target(self, vt_symbol: str, target: float) -> None:
-        """Set target position"""
+        """设置目标持仓"""
         self.target_data[vt_symbol] = target
 
     def execute_trading(self, bars: dict[str, BarData], price_add: float) -> None:
-        """Execute position adjustment based on targets"""
+        """根据目标执行交易调整"""
         self.cancel_all()
 
-        # Only send orders for contracts with current bar data
+        # 只为有当前K线数据的合约发送订单
         for vt_symbol, bar in bars.items():
-            # Calculate position difference
+            # 计算持仓差异
             target: float = self.get_target(vt_symbol)
             pos: float = self.get_pos(vt_symbol)
             diff: float = target - pos
 
-            # Long position
+            # 多头仓位
             if diff > 0:
-                # Calculate long order price
+                # 计算多单价格
                 order_price: float = bar.close_price * (1 + price_add)
 
-                # Calculate cover and buy volumes
+                # 计算平空和买多的数量
                 cover_volume: float = 0
                 buy_volume: float = 0
 
@@ -156,18 +156,18 @@ class AlphaStrategy(metaclass=ABCMeta):
                 else:
                     buy_volume = diff
 
-                # Send corresponding orders
+                # 发送对应订单
                 if cover_volume:
                     self.cover(vt_symbol, order_price, cover_volume)
 
                 if buy_volume:
                     self.buy(vt_symbol, order_price, buy_volume)
-            # Short position
+            # 空头仓位
             elif diff < 0:
-                # Calculate short order price
+                # 计算空单价格
                 order_price = bar.close_price * (1 - price_add)
 
-                # Calculate sell and short volumes
+                # 计算卖空和卖出的数量
                 sell_volume: float = 0
                 short_volume: float = 0
 
@@ -177,7 +177,7 @@ class AlphaStrategy(metaclass=ABCMeta):
                 else:
                     short_volume = abs(diff)
 
-                # Send corresponding orders
+                # 发送对应订单
                 if sell_volume:
                     self.sell(vt_symbol, order_price, sell_volume)
 
@@ -185,21 +185,21 @@ class AlphaStrategy(metaclass=ABCMeta):
                     self.short(vt_symbol, order_price, short_volume)
 
     def write_log(self, msg: str) -> None:
-        """Write log message"""
+        """写入日志消息"""
         self.strategy_engine.write_log(msg, self)
 
     def get_cash_available(self) -> float:
-        """Get available cash"""
+        """获取可用资金"""
         return self.strategy_engine.get_cash_available()
 
     def get_holding_value(self) -> float:
-        """Get holding market value"""
+        """获取持仓市值"""
         return self.strategy_engine.get_holding_value()
 
     def get_portfolio_value(self) -> float:
-        """Get total portfolio value"""
+        """获取总资产价值"""
         return self.get_cash_available() + self.get_holding_value()
 
     def get_cash(self) -> float:
-        """Legacy compatibility method"""
+        """兼容旧方法"""
         return self.get_cash_available()

@@ -486,6 +486,7 @@ class BacktestingEngine:
         fig = make_subplots(
             rows=4,
             cols=1,
+            shared_xaxes=True,
             subplot_titles=["资金曲线", "回撤分析", "日盈亏", "盈亏分布"],
             vertical_spacing=0.06
         )
@@ -514,6 +515,192 @@ class BacktestingEngine:
 
         fig.update_layout(height=1000, width=1000)
         fig.show()
+
+    def plot_all_stocks(self, title: str = "所有股票价格走势", selected_symbols: list[str] | None = None) -> None:
+        """
+        绘制所有票的价格走势图并标记买卖点
+
+        Args:
+            title: 图表标题
+            selected_symbols: 可选的股票代码列表，如果为None则绘制所有股票
+
+        功能：
+        - 绘制指定合约的价格走势线图
+        - 在图表上标记买入和卖出信号点
+        - 每个股票单独一个图，非子图形式
+        - 使用不同颜色区分买卖点
+        """
+        if self.history_data is None or len(self.history_data) == 0:
+            logger.info("没有历史数据可供绘制")
+            return
+
+        # 收集所有交易记录
+        all_trades = self.get_all_trades()
+
+        # 按合约分组交易记录
+        trades_by_symbol = {}
+        for trade in all_trades:
+            if trade.vt_symbol not in trades_by_symbol:
+                trades_by_symbol[trade.vt_symbol] = []
+            trades_by_symbol[trade.vt_symbol].append(trade)
+
+        # 确定要绘制的股票代码
+        symbols_to_plot = selected_symbols if selected_symbols else self.vt_symbols
+
+        # 过滤掉不存在的股票代码
+        available_symbols = [symbol for symbol in symbols_to_plot if symbol in self.vt_symbols]
+
+        if not available_symbols:
+            logger.info(f"没有找到指定的股票代码: {symbols_to_plot}")
+            return
+
+        logger.info(f"正在绘制 {len(available_symbols)} 只股票的价格走势...")
+
+        # 为每个选定的合约创建单独的图表
+        for vt_symbol in available_symbols:
+            # 获取该合约的历史数据
+            symbol_bars = []
+            for (dt, symbol), bar in self.history_data.items():
+                if symbol == vt_symbol:
+                    symbol_bars.append((dt, bar))
+
+            if not symbol_bars:
+                logger.info(f"合约 {vt_symbol} 无历史数据，跳过绘制")
+                continue
+
+            # 按时间排序
+            symbol_bars.sort(key=lambda x: x[0])
+
+            # 提取价格和日期
+            dates = [bar[0] for bar in symbol_bars]
+            close_prices = [bar[1].close_price for bar in symbol_bars]
+            open_prices = [bar[1].open_price for bar in symbol_bars]
+            high_prices = [bar[1].high_price for bar in symbol_bars]
+            low_prices = [bar[1].low_price for bar in symbol_bars]
+            volume = [bar[1].volume for bar in symbol_bars]
+
+            logger.info(f"正在绘制 {vt_symbol} 的价格走势，共 {len(symbol_bars)} 个数据点")
+
+            # 创建图表
+
+            fig = make_subplots(
+                rows=3,
+                cols=1,
+                shared_xaxes=True,
+                vertical_spacing=0.2,
+                specs = [
+                    [{"rowspan": 2}],  # ⭐ 第一个图占2行
+                    [None],  # 第3行
+                    [{}]
+                ]
+                )
+            price_line = go.Candlestick(
+                x=dates,
+                open=open_prices,
+                high=high_prices,
+                low=low_prices,
+                close=close_prices,
+                name="K线"
+            )
+            # 绘制价格线
+            price_line1 = go.Scatter(
+                x=dates,
+                y=close_prices,
+                mode="lines",
+                name=f"{vt_symbol}收盘价",
+            )
+            price_line2 = go.Scatter(
+                x=dates,
+                y=open_prices,
+                mode="lines",
+                name=f"{vt_symbol}开盘价",
+            )
+            volume_bar = go.Bar(
+                x=dates,
+                y=volume,
+                name="成交量",
+                marker=dict(
+                    color=[
+                        "green" if c >= o else "red"
+                        for c, o in zip(close_prices, open_prices)
+                    ]
+                )
+            )
+
+            fig.add_trace(price_line, row=1, col=1)
+            fig.add_trace(volume_bar, row=3, col=1)
+
+            fig.update_layout(
+                yaxis=dict(
+                    autorange=True,
+                    fixedrange=False  # ⭐ 允许缩放
+                )
+            )
+
+            # 如果该合约有交易记录，绘制买卖点
+            if vt_symbol in trades_by_symbol:
+                buy_dates = []
+                buy_prices = []
+                sell_dates = []
+                sell_prices = []
+
+                for trade in trades_by_symbol[vt_symbol]:
+                    if trade.direction == Direction.LONG:
+                        buy_dates.append(trade.datetime)
+                        buy_prices.append(trade.price)
+                    elif trade.direction == Direction.SHORT:
+                        sell_dates.append(trade.datetime)
+                        sell_prices.append(trade.price)
+
+                # 绘制买入点（绿色三角形）
+                if buy_dates and buy_prices:
+                    buy_scatter = go.Scatter(
+                        x=buy_dates,
+                        y=buy_prices,
+                        mode="markers",
+                        name=f"{vt_symbol} 买入",
+                        marker=dict(
+                            symbol="triangle-up",
+                            line=dict(  # ⭐ 边框
+                                color="white"
+                            )
+                        )
+                    )
+                    fig.add_trace(buy_scatter, row=1, col=1)
+
+                # 绘制卖出点（红色圆形）
+                if sell_dates and sell_prices:
+                    sell_scatter = go.Scatter(
+                        x=sell_dates,
+                        y=sell_prices,
+                        mode="markers",
+                        name=f"{vt_symbol} 卖出",
+                        marker=dict(
+                            symbol="circle",
+                            line=dict(  # ⭐ 边框
+                                color="white"
+                            )
+                        )
+                    )
+                    fig.add_trace(sell_scatter, row=1, col=1)
+
+            # 更新布局
+            # fig.update_layout(
+            #     title=f"{title} - {vt_symbol}",
+            #     xaxis_title="日期",
+            #     yaxis_title="价格",
+            #     showlegend=True,
+            #     plot_bgcolor="white",
+            #     paper_bgcolor="white",
+            #     hovermode='x unified'
+            # )
+            fig.update_layout(height=600, width=1000)
+            # 添加网格线
+            fig.update_xaxes(showgrid=True)
+            fig.update_yaxes(showgrid=True)
+
+            # 显示图表
+            fig.show()
 
     def show_performance(self, benchmark_symbol: str) -> None:
         """
