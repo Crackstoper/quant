@@ -615,16 +615,11 @@ class BacktestingEngine:
                 mode="lines",
                 name=f"{vt_symbol}开盘价",
             )
-            volume_bar = go.Bar(
+            volume_bar = go.Scatter(
                 x=dates,
                 y=volume,
+                mode="lines",
                 name="成交量",
-                marker=dict(
-                    color=[
-                        "green" if c >= o else "red"
-                        for c, o in zip(close_prices, open_prices)
-                    ]
-                )
             )
 
             fig.add_trace(price_line, row=1, col=1)

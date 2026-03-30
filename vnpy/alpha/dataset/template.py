@@ -21,7 +21,7 @@ from .utility import (
 
 
 class AlphaDataset:
-    """Alpha dataset template class"""
+    """Alpha 数据集模板类"""
 
     def __init__(
         self,
@@ -31,16 +31,16 @@ class AlphaDataset:
         test_period: tuple[str, str],
         process_type: str = "append"
     ) -> None:
-        """Constructor"""
+        """构造函数"""
         self.df: pl.DataFrame = df
 
-        # DataFrames for processed data
+        # 处理后的数据 DataFrame
         self.result_df: pl.DataFrame
         self.raw_df: pl.DataFrame
         self.infer_df: pl.DataFrame
         self.learn_df: pl.DataFrame
 
-        # New version
+        # 新版本数据期间配置
         self.data_periods: dict[Segment, tuple[str, str]] = {
             Segment.TRAIN: train_period,
             Segment.VALID: valid_period,
@@ -62,10 +62,10 @@ class AlphaDataset:
         result: pl.DataFrame | None = None
     ) -> None:
         """
-        Add a feature expression
+        添加特征表达式
         """
         if expression is not None and result is not None:
-            raise ValueError("Only one of 'expression' or 'result' can be provided")
+            raise ValueError("只能提供 'expression' 或 'result' 之一")
 
         if expression is not None:
             self.feature_expressions[name] = expression
@@ -74,13 +74,13 @@ class AlphaDataset:
 
     def set_label(self, expression: str) -> None:
         """
-        Set the label expression
+        设置标签表达式
         """
         self.label_expression = expression
 
     def add_processor(self, task: str, processor: Callable[[pl.DataFrame], None]) -> None:
         """
-        Add a feature preprocessor
+        添加特征预处理器
         """
         if task == "infer":
             self.infer_processors.append(processor)
@@ -89,18 +89,18 @@ class AlphaDataset:
 
     def prepare_data(self, filters: dict | None = None, max_workers: int | None = None) -> None:
         """
-        Generate required data
+        生成所需数据
         """
-        # List for feature data results
+        # 特征数据结果列表
         results: list = []
 
-        # Iterate through expressions for calculation
+        # 遍历表达式进行计算
         expressions: list[tuple[str, str | pl.expr.expr.Expr]] = list(self.feature_expressions.items())
 
         if self.label_expression:
             expressions.append(("label", self.label_expression))
 
-        # Create process pool
+        # 创建进程池
         logger.info("开始计算表达式因子特征")
 
         args: list[tuple] = [(self.df, name, expression) for name, expression in expressions]
@@ -108,16 +108,16 @@ class AlphaDataset:
         context: BaseContext = get_context("spawn")
 
         with context.Pool(processes=max_workers) as pool:
-            # Calculate all expressions in parallel
+            # 并行计算所有表达式
             it = pool.imap(calculate_feature, args)
 
-            # Collect results
+            # 收集结果
             for result in tqdm(it, total=len(args)):
                 results.append(result)
 
         self.result_df = self.df.with_columns(results)
 
-        # Merge result data factor features
+        # 合并结果数据因子特征
         logger.info("开始合并结果数据因子特征")
 
         label_exist: bool = "label" in self.result_df
@@ -126,11 +126,11 @@ class AlphaDataset:
             self.result_df = self.result_df.join(feature_result, on=["datetime", "vt_symbol"], how="left")
 
         if label_exist:
-            # Put label at the last column
+            # 将标签放在最后一列
             cols: list = [col for col in self.result_df.columns if col != "label"] + ["label"]
             self.result_df = self.result_df.select(cols).sort(["datetime", "vt_symbol"])
 
-        # Generate raw data
+        # 生成原始数据
         raw_df = self.result_df.fill_null(float("nan"))
 
         if filters:
@@ -149,7 +149,7 @@ class AlphaDataset:
 
             raw_df = pl.concat(dfs)
 
-        # Only keep feature columns
+        # 只保留特征列
         select_columns: list[str] = ["datetime", "vt_symbol"] + raw_df.columns[self.df.width:]
         self.raw_df = raw_df.select(select_columns).sort(["datetime", "vt_symbol"])
 
@@ -158,13 +158,13 @@ class AlphaDataset:
 
     def process_data(self) -> None:
         """
-        Process data
+        处理数据
         """
-        # Generate inference data
+        # 生成推理数据
         for processor in self.infer_processors:
             self.infer_df = processor(df=self.infer_df)
 
-        # Generate learning data
+        # 生成学习数据
         if self.process_type == "append":
             self.learn_df = self.infer_df
 
@@ -173,28 +173,28 @@ class AlphaDataset:
 
     def fetch_raw(self, segment: Segment) -> pl.DataFrame:
         """
-        Get raw data for a specific segment
+        获取特定分段的原始数据
         """
         start, end = self.data_periods[segment]
         return query_by_time(self.raw_df, start, end)
 
     def fetch_infer(self, segment: Segment) -> pl.DataFrame:
         """
-        Get inference data for a specific segment
+        获取特定分段的推理数据
         """
         start, end = self.data_periods[segment]
         return query_by_time(self.infer_df, start, end)
 
     def fetch_learn(self, segment: Segment) -> pl.DataFrame:
         """
-        Get learning data for a specific segment
+        获取特定分段的学习数据
         """
         start, end = self.data_periods[segment]
         return query_by_time(self.learn_df, start, end)
 
     def show_feature_performance(self, name: str) -> None:
         """
-        Perform performance analysis for a feature
+        执行特征性能分析
         """
         starts: list[datetime] = []
         ends: list[datetime] = []
@@ -206,7 +206,7 @@ class AlphaDataset:
         start: datetime = min(starts)
         end: datetime = max(ends)
 
-        # Select range
+        # 选择时间范围
         result_df: pl.DataFrame = query_by_time(self.result_df, start, end)
         learn_df: pl.DataFrame = query_by_time(self.learn_df, start, end)
 
@@ -220,46 +220,46 @@ class AlphaDataset:
             )
         )
 
-        # Fill NaN and drop nulls
+        # 填充 NaN 并删除空值
         merged_df = merged_df.fill_nan(None).drop_nulls()
 
-        # Extract feature
+        # 提取特征
         feature_df: pd.DataFrame = merged_df.select(["datetime", "vt_symbol", name]).to_pandas()
         feature_df.set_index(["datetime", "vt_symbol"], inplace=True)
 
         feature_s: pd.Series = feature_df[name]
 
-        # Extract price
+        # 提取价格
         price_df: pd.DataFrame = merged_df.select(["datetime", "vt_symbol", "close"]).to_pandas()
         price_df = price_df.pivot(index="datetime", columns="vt_symbol", values="close")
 
-        # Merge data
+        # 合并数据
         clean_data: pd.DataFrame = get_clean_factor_and_forward_returns(feature_s, price_df, quantiles=10)
 
-        # Perform analysis
+        # 执行分析
         create_full_tear_sheet(clean_data)
 
     def show_signal_performance(self, signal: pl.DataFrame) -> None:
         """
-        Perform performance analysis for prediction signals
+        执行预测信号性能分析
         """
-        # Get signal start and end times
+        # 获取信号开始和结束时间
         start: datetime = cast(datetime, signal["datetime"].min())
         end: datetime = cast(datetime, signal["datetime"].max())
 
-        # Select range
+        # 选择时间范围
         df: pl.DataFrame = query_by_time(self.result_df, start, end)
 
-        # Extract feature
+        # 提取特征
         signal_df: pd.DataFrame = signal.to_pandas()
         signal_df.set_index(["datetime", "vt_symbol"], inplace=True)
         signal_s: pd.Series = signal_df["signal"]
 
-        # Extract price
+        # 提取价格
         price_df: pd.DataFrame = df.select(["datetime", "vt_symbol", "close"]).to_pandas()
         price_df = price_df.pivot(index="datetime", columns="vt_symbol", values="close")
 
-        # Merge data
+        # 合并数据
         clean_data: pd.DataFrame = get_clean_factor_and_forward_returns(
             signal_s,
             price_df,
@@ -267,13 +267,13 @@ class AlphaDataset:
             quantiles=10
         )
 
-        # Perform analysis
+        # 执行分析
         create_full_tear_sheet(clean_data)
 
 
 def query_by_time(df: pl.DataFrame, start: datetime | str = "", end: datetime | str = "") -> pl.DataFrame:
     """
-    Filter DataFrame based on time range
+    基于时间范围过滤 DataFrame
     """
     if start:
         start = to_datetime(start)
@@ -288,7 +288,7 @@ def query_by_time(df: pl.DataFrame, start: datetime | str = "", end: datetime | 
 
 def calculate_feature(args: tuple[pl.DataFrame, str, str | pl.expr.expr.Expr]) -> pl.Series:
     """
-    Calculate feature by expression
+    通过表达式计算特征
     """
     start = time.time()
 
@@ -300,6 +300,6 @@ def calculate_feature(args: tuple[pl.DataFrame, str, str | pl.expr.expr.Expr]) -
         result = calculate_by_expression(df, expression)["data"].alias(name)
 
     end = time.time()
-    print(f"Feature calculation {name} took: {end - start} seconds | {expression}")
+    print(f"特征计算 {name} 耗时: {end - start} 秒 | {expression}")
 
     return result

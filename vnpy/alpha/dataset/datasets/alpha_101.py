@@ -23,7 +23,7 @@ class Alpha101(AlphaDataset):
 
         returns_expr: str = "(close / ts_delay(close, 1) - 1)"
 
-        # Alpha1
+        # Alpha1 “极端波动的时间动量因子（event recency factor）”
         self.add_feature("alpha1", f"(cs_rank(ts_argmax(pow1(quesval(0, {returns_expr}, close, ts_std({returns_expr}, 20)), 2.0), 5)) - 0.5)")
 
         # Alpha2
